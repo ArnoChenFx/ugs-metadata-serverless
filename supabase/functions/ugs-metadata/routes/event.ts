@@ -1,13 +1,13 @@
 import { Hono } from "hono";
 import { sql, getOrCreateProjectId } from "../db.ts";
-import { projectLikeString, EventType, EventTypeFromInt } from "../utils.ts";
+import { query, projectLikeString, EventType, EventTypeFromInt } from "../utils.ts";
 
 export const eventRoutes = new Hono();
 
 // GET /api/event?Project=...&LastEventId=...
 eventRoutes.get("/", async (c) => {
-  const project = c.req.query("Project");
-  const lastEventId = c.req.query("LastEventId");
+  const project = query(c, "Project");
+  const lastEventId = query(c, "LastEventId");
   if (!project || lastEventId == null) {
     return c.json([], 200);
   }

@@ -38,6 +38,23 @@ export function sanitizeText(text: string, maxLength: number): string {
   return text.substring(0, newlineIdx + 1) + "...";
 }
 
+/**
+ * Case-insensitive query parameter lookup.
+ * ASP.NET Web API binds query params case-insensitively; Hono does not.
+ */
+export function query(c: { req: { query: (key: string) => string | undefined; queries: (key: string) => string[] | undefined } }, key: string): string | undefined {
+  // Try exact match first
+  const val = c.req.query(key);
+  if (val !== undefined) return val;
+  // Try lowercase
+  const lower = c.req.query(key.toLowerCase());
+  if (lower !== undefined) return lower;
+  // Try uppercase first letter
+  const upper = c.req.query(key.charAt(0).toUpperCase() + key.slice(1));
+  if (upper !== undefined) return upper;
+  return undefined;
+}
+
 // -- Enum mappings (C# enums serialize as integers in Newtonsoft.Json by default) --
 
 export const BuildDataResult: Record<string, number> = {

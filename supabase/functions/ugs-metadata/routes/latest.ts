@@ -1,12 +1,12 @@
 import { Hono } from "hono";
 import { sql } from "../db.ts";
-import { projectLikeString } from "../utils.ts";
+import { query, projectLikeString } from "../utils.ts";
 
 export const latestRoutes = new Hono();
 
 // GET /api/latest?Project=...
 latestRoutes.get("/", async (c) => {
-  const project = c.req.query("Project") ?? null;
+  const project = query(c, "Project") ?? null;
   const like = projectLikeString(project);
 
   let lastEventId = 0;

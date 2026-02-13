@@ -1,12 +1,12 @@
 import { Hono } from "hono";
 import { sql, getOrCreateProjectId } from "../db.ts";
-import { TelemetryErrorType, TelemetryErrorTypeFromInt } from "../utils.ts";
+import { query, TelemetryErrorType, TelemetryErrorTypeFromInt } from "../utils.ts";
 
 export const errorRoutes = new Hono();
 
 // GET /api/error?Records=10
 errorRoutes.get("/", async (c) => {
-  const records = Number(c.req.query("Records") ?? "10");
+  const records = Number(query(c, "Records") ?? "10");
 
   const rows = await sql`
     SELECT id, type, text, user_name, project, "timestamp", version, ip_address
@@ -31,8 +31,8 @@ errorRoutes.get("/", async (c) => {
 
 // POST /api/error?Version=...&IpAddress=...
 errorRoutes.post("/", async (c) => {
-  const version = c.req.query("Version") ?? "";
-  const ipAddress = c.req.query("IpAddress") ?? "";
+  const version = query(c, "Version") ?? "";
+  const ipAddress = query(c, "IpAddress") ?? "";
   const body = await c.req.json();
 
   const typeStr =

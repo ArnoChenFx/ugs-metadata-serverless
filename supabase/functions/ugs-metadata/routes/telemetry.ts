@@ -1,12 +1,13 @@
 import { Hono } from "hono";
 import { sql, getOrCreateProjectId } from "../db.ts";
+import { query } from "../utils.ts";
 
 export const telemetryRoutes = new Hono();
 
 // POST /api/telemetry?Version=...&IpAddress=...
 telemetryRoutes.post("/", async (c) => {
-  const version = c.req.query("Version") ?? "";
-  const ipAddress = c.req.query("IpAddress") ?? "";
+  const version = query(c, "Version") ?? "";
+  const ipAddress = query(c, "IpAddress") ?? "";
   const body = await c.req.json();
 
   const projectId = await getOrCreateProjectId(body.Project);

@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { sql, findOrAddUserId } from "../db.ts";
-import { sanitizeText } from "../utils.ts";
+import { query, sanitizeText } from "../utils.ts";
 
 export const issuesRoutes = new Hono();
 
@@ -12,14 +12,14 @@ const ISSUE_SUMMARY_MAX_LENGTH = 200;
 // GET /api/issues?IncludeResolved=false&MaxResults=-1
 // GET /api/issues?User=...
 issuesRoutes.get("/", async (c) => {
-  const user = c.req.query("User");
+  const user = query(c, "User");
 
   if (user) {
     return await getIssuesByUser(c, user);
   }
 
-  const includeResolved = c.req.query("IncludeResolved") === "true";
-  const maxResults = Number(c.req.query("MaxResults") ?? "-1");
+  const includeResolved = query(c, "IncludeResolved") === "true";
+  const maxResults = Number(query(c, "MaxResults") ?? "-1");
 
   return await getIssuesList(c, includeResolved, maxResults);
 });

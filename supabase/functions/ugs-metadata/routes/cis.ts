@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { sql, getOrCreateProjectId } from "../db.ts";
 import {
+  query,
   projectLikeString,
   matchesWildcard,
   BuildDataResult,
@@ -15,8 +16,8 @@ export const cisRoutes = new Hono();
 // GET /api/cis?Project=...  (returns latest IDs as array)
 // GET /api/cis?Project=...&LastBuildId=...  (returns builds)
 cisRoutes.get("/", async (c) => {
-  const project = c.req.query("Project") ?? null;
-  const lastBuildId = c.req.query("LastBuildId");
+  const project = query(c, "Project") ?? null;
+  const lastBuildId = query(c, "LastBuildId");
 
   if (lastBuildId != null) {
     // Same as GET /api/build

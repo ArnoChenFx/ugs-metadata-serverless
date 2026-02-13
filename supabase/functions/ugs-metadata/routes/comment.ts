@@ -1,13 +1,13 @@
 import { Hono } from "hono";
 import { sql, getOrCreateProjectId } from "../db.ts";
-import { projectLikeString } from "../utils.ts";
+import { query, projectLikeString } from "../utils.ts";
 
 export const commentRoutes = new Hono();
 
 // GET /api/comment?Project=...&LastCommentId=...
 commentRoutes.get("/", async (c) => {
-  const project = c.req.query("Project");
-  const lastCommentId = c.req.query("LastCommentId");
+  const project = query(c, "Project");
+  const lastCommentId = query(c, "LastCommentId");
   if (!project || lastCommentId == null) {
     return c.json([], 200);
   }
