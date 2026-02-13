@@ -1,0 +1,24 @@
+# Supabase
+supabase/.branches
+supabase/.temp
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Node / Deno
+node_modules/
+
+# Wrangler
+.wrangler/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

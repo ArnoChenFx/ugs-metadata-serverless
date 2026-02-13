@@ -1,0 +1,6 @@
+{
+  "imports": {
+    "hono": "jsr:@hono/hono@^4",
+    "postgres": "npm:postgres@^3"
+  }
+}
