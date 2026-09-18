@@ -47,7 +47,10 @@ console.log("UGS Metadata Server 已启动");
 console.log(`  数据库   : ${database.path}`);
 console.log(`  监听地址 : http://${hostname}:${port}/`);
 console.log(`  健康检查 : http://${hostname}:${port}/health`);
-console.log(`  UGS 配置 : ApiUrl=http://<本机 IP>:${port}`);
+// 提示 UGS 客户端该把 ApiUrl 写到哪里（URL 末尾不带斜杠，详见 README）
+console.log(
+  `  UGS 配置 : 项目/Build/UnrealGameSync.ini 的 [Default] ApiUrl=http://<本机 IP>:${port}`,
+);
 
 const server = Deno.serve({ port, hostname }, app.fetch);
 

@@ -70,18 +70,49 @@ curl "http://localhost:8080/api/latest?Project=//depot/main"
 
 ### 配置 UGS 客户端
 
-把 API 地址指向本服务根地址即可：
+UGS 需要一个 `ApiUrl` 来找到本服务。**它不是 Unreal 引擎配置**，不在 `[/Script/...]` 节里，
+而是在下面三处之一（按「就近优先」查找），日常只需要第 1 种。
+
+#### 1. 项目配置文件（推荐，随项目走）
+
+在 Unreal 项目目录下建 `Build/UnrealGameSync.ini`，并**提交到 Perforce**（否则客户端拿不到）：
 
 ```ini
-[/Script/UnrealGameSync.UnrealGameSyncSettings]
+[Default]
 ApiUrl=http://192.168.1.10:8080
 ```
 
-UGS 会自动请求 `/api/latest`、`/api/build` 等路径。
+查找规则：先找以项目路径命名的节（如 `[//depot/main/MyGame/MyGame.uproject]`），
+逐级去掉路径末尾向上回退，最后回落到 `[Default]`。想全项目统一就只写 `[Default]`。
 
-> 服务默认监听 `0.0.0.0`，同一局域网内的机器都能访问；
-> 只想本机访问就把 `HOST` 改成 `127.0.0.1`。
-> 部署在别的机器上时，把 `localhost` 换成那台机器的内网 IP。
+#### 2. 站点部署默认值（全团队默认）
+
+`Deployment.json`，放在 `UnrealGameSync.exe` **同目录**：
+
+```json
+{ "ApiUrl": "http://192.168.1.10:8080" }
+```
+
+自更新部署下这个目录是 `%LOCALAPPDATA%\UnrealGameSync\Latest\`；
+UE4 时代的老版本没有这个文件，是把值直接写在 `DeploymentSettings.cs` 里编译进 exe 的。
+
+#### 3. 引擎目录下的全局配置
+
+`<引擎目录>/Programs/UnrealGameSync/UnrealGameSync.ini`，同样是 `[Default]` 节。
+
+> 当「项目」是 `.uprojectdirs` 而不是 `.uproject` 时，UGS 会改读同目录下的
+> `DefaultEngine.ini` —— 但读的仍然是普通节名（项目路径或 `[Default]`），
+> **不是** `[/Script/UnrealGameSync.UnrealGameSyncSettings]`（这个类在 UGS 源码里不存在）。
+
+#### 注意事项
+
+- **URL 末尾不要带 `/`**。UGS 是直接拼 `${ApiUrl}/api/latest` 的，多一个斜杠会变成 `//api/latest`。
+- 如果 UGS 提示 `Database functionality disabled due to empty ApiUrl.`，
+  说明上面三处都没读到值。
+- 服务默认监听 `0.0.0.0`，局域网内其他机器可直接访问；只想本机访问就把 `HOST` 改成 `127.0.0.1`。
+  部署在别的机器上时，把示例里的 `192.168.1.10` 换成那台机器的内网 IP。
+- UGS 客户端的 **Perforce 服务器 / 用户名 / depot 路径**等个人设置存在注册表
+  `HKCU\SOFTWARE\Epic Games\UnrealGameSync`，和这里的 `ApiUrl` 不是一回事。
 
 ### 配置项
 
