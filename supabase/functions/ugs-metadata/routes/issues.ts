@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import type { Context } from "hono";
 import { sql, findOrAddUserId } from "../db.ts";
 import { query, sanitizeText } from "../utils.ts";
 
@@ -257,12 +258,16 @@ issuesRoutes.delete("/:issueId/watchers", async (c) => {
 
 // ---------- Internal helpers ----------
 
-async function getIssuesList(c: any, includeResolved: boolean, maxResults: number) {
+async function getIssuesList(
+  c: Context,
+  includeResolved: boolean,
+  maxResults: number,
+) {
   const issues = await getIssuesInternal(-1, null, includeResolved, maxResults);
   return c.json(issues);
 }
 
-async function getIssuesByUser(c: any, userName: string) {
+async function getIssuesByUser(c: Context, userName: string) {
   const issues = await getIssuesInternal(-1, userName, false, -1);
   return c.json(issues);
 }

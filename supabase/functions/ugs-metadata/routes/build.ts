@@ -4,6 +4,7 @@ import {
   query,
   projectLikeString,
   matchesWildcard,
+  parseJsonColumn,
   BuildDataResult,
 } from "../utils.ts";
 
@@ -47,7 +48,8 @@ buildRoutes.get("/", async (c) => {
         Url: r.url as string,
         Project: r.project as string | null,
         ArchivePath: r.archive_path as string | null,
-        Metadata: r.metadata ?? null,
+        // jsonb（Postgres）与 TEXT（SQLite）统一成对象
+        Metadata: parseJsonColumn(r.metadata),
         IsSuccess: resultInt === BuildDataResult.Success || resultInt === BuildDataResult.Warning,
         IsFailure: resultInt === BuildDataResult.Failure,
       };

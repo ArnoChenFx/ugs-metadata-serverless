@@ -1,0 +1,122 @@
+# 构建并发布 Docker 镜像到 GitHub Container Registry (GHCR)
+#
+# 触发方式：
+#   - push 到 sqlite 分支        → 打上 `latest` / `sqlite` / `sha-xxxxxxx` 标签
+#   - push 形如 v1.2.3 的 tag  → 额外打上 `1.2.3` / `1.2` / `1` 标签
+#   - Pull Request             → 只构建不推送（用来验证 Dockerfile 还能编过）
+#   - 手动触发 (workflow_dispatch)
+#
+# 发布出来的镜像（多架构：linux/amd64 + linux/arm64）：
+#   ghcr.io/arnochenfx/ugs-metadata-serverless:latest
+
+name: Docker
+
+on:
+  push:
+    branches: [sqlite]
+    tags: ["v*.*.*"]
+  pull_request:
+    branches: [sqlite]
+  workflow_dispatch:
+
+# 同一分支/标签的新一轮构建会取消上一轮，避免排队堆积
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  DENO_VERSION: 2.9.7
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 先跑测试：lint / 类型检查 / 端到端测试（纯本地 SQLite 模式）
+  # ---------------------------------------------------------------------------
+  test:
+    name: 检查与测试
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v${{ env.DENO_VERSION }}
+
+      - name: 代码风格检查
+        run: deno lint
+
+      - name: 类型检查
+        run: deno task check
+
+      - name: 运行测试（含 SQLite 驱动与 API 端到端）
+        run: deno task test
+
+  # ---------------------------------------------------------------------------
+  # 构建多架构镜像并推送到 GHCR
+  # ---------------------------------------------------------------------------
+  build:
+    name: 构建并推送镜像
+    runs-on: ubuntu-latest
+    needs: test
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # 让 x86 的 runner 也能构建 linux/arm64 镜像
+      - name: 准备 QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: 准备 Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 登录 GHCR
+        # PR 只验证构建，不推送，因此也不需要登录
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 生成镜像标签与 OCI 元数据
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: 构建并推送
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            DENO_VERSION=${{ env.DENO_VERSION }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: 输出可用的镜像地址
+        run: |
+          echo "### 镜像已发布" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "${{ steps.meta.outputs.tags }}" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "拉取：\`docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest\`" >> "$GITHUB_STEP_SUMMARY"

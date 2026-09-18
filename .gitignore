@@ -13,6 +13,18 @@ node_modules/
 # Wrangler
 .wrangler/
 
+# 本地 SQLite 数据（纯本地模式）
+# 注意：根目录的 deno.lock 需要提交，确保构建可复现，不要忽略它。
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# Deno 按「就近配置」时会为 supabase/functions/ugs-metadata/deno.json 另外生成一份
+# lock 文件，与根目录的 deno.lock 内容不一致但版本相同。依赖锁定统一以根 deno.lock
+# 为准，因此这里忽略这份副产物。
+supabase/functions/**/deno.lock
+
 # OS
 .DS_Store
 Thumbs.db

@@ -39,6 +39,23 @@ export function sanitizeText(text: string, maxLength: number): string {
 }
 
 /**
+ * 归一化 JSON 列的值。
+ *
+ * Postgres 的 jsonb 列会被驱动直接解析成对象；而 SQLite 把 JSON 存成 TEXT，
+ * 读出来是字符串。这里统一成对象，保证两种驱动对外返回完全一致的 JSON 形状。
+ */
+export function parseJsonColumn<T = unknown>(value: unknown): T | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== "string") return value as T;
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    // 列里存的不是合法 JSON（历史脏数据）时按「无数据」处理，而不是让整个请求失败
+    return null;
+  }
+}
+
+/**
  * Case-insensitive query parameter lookup.
  * ASP.NET Web API binds query params case-insensitively; Hono does not.
  */

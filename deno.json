@@ -1,0 +1,23 @@
+{
+  "imports": {
+    "hono": "jsr:@hono/hono@^4",
+    "postgres": "npm:postgres@^3",
+    "@std/assert": "jsr:@std/assert@^1"
+  },
+  "tasks": {
+    "start": "deno run --allow-net --allow-env --allow-read --allow-write supabase/functions/ugs-metadata/serve.ts",
+    "dev": "deno run --watch --allow-net --allow-env --allow-read --allow-write supabase/functions/ugs-metadata/serve.ts",
+    "test": "deno test --allow-net --allow-env --allow-read --allow-write test/",
+    "check": "deno check supabase/functions/ugs-metadata/index.ts supabase/functions/ugs-metadata/serve.ts supabase/functions/ugs-metadata/drivers/postgres.ts supabase/functions/ugs-metadata/drivers/sqlite.ts tools/healthcheck.ts",
+    "healthcheck": "deno run --no-config --allow-net --allow-env tools/healthcheck.ts"
+  },
+  "test": {
+    "include": ["test/"]
+  },
+  "fmt": {
+    "exclude": ["data/"]
+  },
+  "lint": {
+    "exclude": ["data/"]
+  }
+}

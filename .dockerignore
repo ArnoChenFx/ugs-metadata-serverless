@@ -1,0 +1,33 @@
+# 与镜像无关的内容不要发给 Docker daemon，既能加快构建也能避免把本地数据/密钥打进镜像。
+# 注意：deno.json / deno.lock / supabase / tools 是构建必需的，不能排除。
+
+# 版本控制
+.git
+.gitignore
+.gitattributes
+
+# 本地环境变量（可能含数据库密码等敏感信息）
+.env
+.env.local
+.env.*.local
+
+# 本地 SQLite 数据（绝不要打进镜像）
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# 与运行时无关的目录
+.github
+docs
+test
+cloudflare-proxy
+node_modules
+.wrangler
+
+# Deno 按「就近配置」生成的嵌套 lock（以根目录 deno.lock 为准）
+supabase/functions/**/deno.lock
+
+# 文档与许可证（镜像里用不到）
+*.md
+LICENSE

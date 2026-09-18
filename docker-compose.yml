@@ -1,0 +1,64 @@
+# UGS Metadata Server —— 一键部署（纯本地 SQLite 模式）
+#
+#   docker compose up -d            # 有镜像就直接用，没有就按需构建
+#   docker compose logs -f          # 看日志
+#   docker compose down             # 停止（数据卷保留）
+#
+# 数据保存在名为 ugs-data 的具名卷里，`docker compose down` 不会删除，
+# 只有 `docker compose down -v` 才会连带清除。
+#
+# 想改用 PostgreSQL：见 docker-compose.postgres.yml
+
+name: ugs-metadata
+
+services:
+  ugs-metadata:
+    # 使用 GitHub Actions 自动发布的多架构镜像（linux/amd64 + linux/arm64）
+    image: ghcr.io/arnochenfx/ugs-metadata-serverless:latest
+
+    # 同时声明 build：Compose 会先尝试拉取 image，拉不到时（还没发布 / 离线）
+    # 自动从当前目录的源码构建。想强制重建加 --build。
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    container_name: ugs-metadata
+    restart: unless-stopped
+
+    environment:
+      # 纯本地模式：单文件 SQLite，无需任何外部数据库
+      DB_DRIVER: sqlite
+      SQLITE_PATH: /data/ugs.db
+      PORT: "8080"
+      HOST: 0.0.0.0
+      # 路由前缀留空，UGS 客户端直接访问 http://<host>:8080/api/...
+      BASE_PATH: ""
+
+    ports:
+      # 宿主机端口可通过环境变量覆盖，例如 UGS_PORT=9000 docker compose up -d
+      - "${UGS_PORT:-8080}:8080"
+
+    volumes:
+      # SQLite 数据文件（含 WAL / SHM）全部落在 /data
+      - ugs-data:/data
+
+    healthcheck:
+      test:
+        - CMD
+        - deno
+        - run
+        - --no-config
+        - --allow-net
+        - --allow-env
+        - tools/healthcheck.ts
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+    # 收到 SIGTERM 后给进程最多 15 秒完成收尾（关闭 HTTP、checkpoint WAL、关闭数据库）
+    stop_grace_period: 15s
+
+volumes:
+  ugs-data:
+    name: ugs-data
