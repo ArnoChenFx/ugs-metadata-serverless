@@ -48,7 +48,7 @@ buildRoutes.get("/", async (c) => {
         Url: r.url as string,
         Project: r.project as string | null,
         ArchivePath: r.archive_path as string | null,
-        // jsonb（Postgres）与 TEXT（SQLite）统一成对象
+        // metadata 在库里是 JSON 文本，这里解析成对象（与 UGS 客户端期望的形状一致）
         Metadata: parseJsonColumn(r.metadata),
         IsSuccess: resultInt === BuildDataResult.Success || resultInt === BuildDataResult.Warning,
         IsFailure: resultInt === BuildDataResult.Failure,
@@ -77,7 +77,7 @@ buildRoutes.post("/", async (c) => {
       ${body.Url},
       ${body.ArchivePath ?? null},
       ${projectId},
-      ${JSON.stringify(body.Metadata ?? { Links: [] })}::jsonb
+      ${JSON.stringify(body.Metadata ?? { Links: [] })}
     )
   `;
 

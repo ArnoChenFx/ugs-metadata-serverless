@@ -1,84 +1,96 @@
--- UGS Metadata Server schema (ported from MySQL to PostgreSQL)
+-- UGS Metadata Server —— SQLite schema
+--
+-- 本文件由 src/sqlite.ts 在每次打开数据库时自动执行（内建 SQLite，无需额外依赖），
+-- 因此首次运行不需要任何迁移工具。里面的语句全部是幂等的（IF NOT EXISTS），
+-- 重复执行安全：后续新增表或索引，下次启动会自动补齐。
+--
+-- 几点约定：
+--   * 主键统一用 INTEGER PRIMARY KEY AUTOINCREMENT
+--   * 时间戳统一存 TEXT（UTC），格式 'YYYY-MM-DD HH:MM:SS'，与 CURRENT_TIMESTAMP 一致
+--   * JSON（如 badges.metadata）存 TEXT，读取时由 utils.ts 的 parseJsonColumn() 解析成对象
+--   * 枚举（构建结果、评审结论等）以字符串存储，含义见 src/utils.ts 的映射表
 
 CREATE TABLE IF NOT EXISTS projects (
-  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
   name VARCHAR(128) NOT NULL UNIQUE
 );
 
 CREATE TABLE IF NOT EXISTS users (
-  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
   name VARCHAR(128) NOT NULL UNIQUE
 );
 
+-- 构建结果（对应原始服务里的 badges 概念）
 CREATE TABLE IF NOT EXISTS badges (
-  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
   change_number INT NOT NULL,
   build_type VARCHAR(32) NOT NULL,
   result VARCHAR(10) NOT NULL,
   url VARCHAR(512) NOT NULL,
-  project_id BIGINT NOT NULL REFERENCES projects(id),
+  project_id INTEGER NOT NULL REFERENCES projects(id),
   archive_path VARCHAR(512),
-  metadata JSONB DEFAULT '{"Links":[]}'::jsonb
+  metadata TEXT DEFAULT '{"Links":[]}'
 );
 
 CREATE TABLE IF NOT EXISTS comments (
-  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
   change_number INT NOT NULL,
   user_name VARCHAR(128) NOT NULL,
   text VARCHAR(1024) NOT NULL,
   project VARCHAR(128) NOT NULL,
-  project_id BIGINT REFERENCES projects(id)
+  project_id INTEGER REFERENCES projects(id)
 );
 
+-- 用户对某个 changelist 的评审结论（Good / Bad / Investigating ...）
 CREATE TABLE IF NOT EXISTS user_votes (
-  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
   changelist INT NOT NULL,
   user_name VARCHAR(128) NOT NULL,
   verdict VARCHAR(32) NOT NULL,
   project VARCHAR(256),
-  project_id BIGINT REFERENCES projects(id)
+  project_id INTEGER REFERENCES projects(id)
 );
 
 CREATE TABLE IF NOT EXISTS errors (
-  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
   type VARCHAR(50) NOT NULL,
   text VARCHAR(1024) NOT NULL,
   user_name VARCHAR(128) NOT NULL,
   project VARCHAR(128),
-  project_id BIGINT REFERENCES projects(id),
-  "timestamp" TIMESTAMPTZ NOT NULL,
+  project_id INTEGER REFERENCES projects(id),
+  "timestamp" TEXT NOT NULL,
   version VARCHAR(64) NOT NULL,
   ip_address VARCHAR(64) NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS telemetry_v2 (
-  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
   action VARCHAR(128) NOT NULL,
   result VARCHAR(128) NOT NULL,
   user_name VARCHAR(128) NOT NULL,
   project VARCHAR(128) NOT NULL,
-  project_id BIGINT REFERENCES projects(id),
-  "timestamp" TIMESTAMPTZ NOT NULL,
+  project_id INTEGER REFERENCES projects(id),
+  "timestamp" TEXT NOT NULL,
   duration REAL NOT NULL,
   version VARCHAR(64) NOT NULL,
   ip_address VARCHAR(64) NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS issues (
-  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc'),
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   project VARCHAR(64) NOT NULL,
   summary VARCHAR(256) NOT NULL,
-  owner_id BIGINT REFERENCES users(id),
-  nominated_by_id BIGINT REFERENCES users(id),
-  acknowledged_at TIMESTAMPTZ,
+  owner_id INTEGER REFERENCES users(id),
+  nominated_by_id INTEGER REFERENCES users(id),
+  acknowledged_at TEXT,
   fix_change INT DEFAULT 0,
-  resolved_at TIMESTAMPTZ
+  resolved_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS issue_builds (
-  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  issue_id BIGINT NOT NULL REFERENCES issues(id),
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  issue_id INTEGER NOT NULL REFERENCES issues(id),
   stream VARCHAR(128) NOT NULL,
   change INT NOT NULL,
   job_name VARCHAR(1024) NOT NULL,
@@ -90,32 +102,32 @@ CREATE TABLE IF NOT EXISTS issue_builds (
 );
 
 CREATE TABLE IF NOT EXISTS issue_diagnostics (
-  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  issue_id BIGINT NOT NULL REFERENCES issues(id),
-  build_id BIGINT REFERENCES issue_builds(id),
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  issue_id INTEGER NOT NULL REFERENCES issues(id),
+  build_id INTEGER REFERENCES issue_builds(id),
   message VARCHAR(1024) NOT NULL,
   url VARCHAR(1024)
 );
 
 CREATE TABLE IF NOT EXISTS issue_watchers (
-  issue_id BIGINT NOT NULL REFERENCES issues(id),
-  user_id BIGINT NOT NULL REFERENCES users(id),
+  issue_id INTEGER NOT NULL REFERENCES issues(id),
+  user_id INTEGER NOT NULL REFERENCES users(id),
   PRIMARY KEY (issue_id, user_id)
 );
 
--- Legacy CIS table (kept for backward compatibility)
+-- 旧版 CIS 表，仅为向后兼容保留
 CREATE TABLE IF NOT EXISTS cis (
-  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
   change_number INT NOT NULL,
   build_type VARCHAR(32) NOT NULL,
   result VARCHAR(10) NOT NULL,
   url VARCHAR(512) NOT NULL,
   project VARCHAR(512),
-  project_id BIGINT REFERENCES projects(id),
+  project_id INTEGER REFERENCES projects(id),
   archive_path VARCHAR(512)
 );
 
--- Indexes for common query patterns
+-- 常用查询路径的索引
 CREATE INDEX IF NOT EXISTS idx_badges_project_id ON badges(project_id);
 CREATE INDEX IF NOT EXISTS idx_comments_project_id ON comments(project_id);
 CREATE INDEX IF NOT EXISTS idx_user_votes_project_id ON user_votes(project_id);

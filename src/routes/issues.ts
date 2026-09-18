@@ -48,7 +48,7 @@ issuesRoutes.post("/", async (c) => {
 
   const [row] = await sql`
     INSERT INTO issues (project, summary, owner_id, created_at, fix_change)
-    VALUES (${body.Project}, ${summary}, ${ownerId}, NOW() AT TIME ZONE 'utc', 0)
+    VALUES (${body.Project}, ${summary}, ${ownerId}, CURRENT_TIMESTAMP, 0)
     RETURNING id
   `;
 
@@ -98,12 +98,12 @@ issuesRoutes.put("/:id{[0-9]+}", async (c) => {
       owner_id = CASE WHEN ${body.Owner != null} THEN ${body.Owner ? await findOrAddUserId(body.Owner) : null} ELSE owner_id END,
       nominated_by_id = CASE WHEN ${body.NominatedBy != null} THEN ${body.NominatedBy ? await findOrAddUserId(body.NominatedBy) : null} ELSE nominated_by_id END,
       acknowledged_at = CASE
-        WHEN ${body.Acknowledged === true} THEN NOW() AT TIME ZONE 'utc'
+        WHEN ${body.Acknowledged === true} THEN CURRENT_TIMESTAMP
         WHEN ${body.Acknowledged === false} THEN NULL
         ELSE acknowledged_at END,
       fix_change = CASE WHEN ${body.FixChange != null} THEN ${body.FixChange ?? 0} ELSE fix_change END,
       resolved_at = CASE
-        WHEN ${body.Resolved === true} THEN NOW() AT TIME ZONE 'utc'
+        WHEN ${body.Resolved === true} THEN CURRENT_TIMESTAMP
         WHEN ${body.Resolved === false} THEN NULL
         ELSE resolved_at END
     WHERE id = ${id}
@@ -290,7 +290,7 @@ async function getIssuesInternal(
     // Single issue by ID
     if (userName != null) {
       rows = await sql`
-        SELECT i.id, i.created_at, NOW() AT TIME ZONE 'utc' AS retrieved_at, i.project, i.summary,
+        SELECT i.id, i.created_at, CURRENT_TIMESTAMP AS retrieved_at, i.project, i.summary,
                ou.name AS owner, nu.name AS nominated_by, i.acknowledged_at, i.fix_change, i.resolved_at,
                iw.user_id AS watcher_user_id
         FROM issues i
@@ -301,7 +301,7 @@ async function getIssuesInternal(
       `;
     } else {
       rows = await sql`
-        SELECT i.id, i.created_at, NOW() AT TIME ZONE 'utc' AS retrieved_at, i.project, i.summary,
+        SELECT i.id, i.created_at, CURRENT_TIMESTAMP AS retrieved_at, i.project, i.summary,
                ou.name AS owner, nu.name AS nominated_by, i.acknowledged_at, i.fix_change, i.resolved_at
         FROM issues i
         LEFT JOIN users ou ON ou.id = i.owner_id
@@ -312,7 +312,7 @@ async function getIssuesInternal(
   } else if (userName != null) {
     // Issues for a specific user (unresolved only, no limit)
     rows = await sql`
-      SELECT i.id, i.created_at, NOW() AT TIME ZONE 'utc' AS retrieved_at, i.project, i.summary,
+      SELECT i.id, i.created_at, CURRENT_TIMESTAMP AS retrieved_at, i.project, i.summary,
              ou.name AS owner, nu.name AS nominated_by, i.acknowledged_at, i.fix_change, i.resolved_at,
              iw.user_id AS watcher_user_id
       FROM issues i
@@ -323,7 +323,7 @@ async function getIssuesInternal(
     `;
   } else if (includeResolved && numResults > 0) {
     rows = await sql`
-      SELECT i.id, i.created_at, NOW() AT TIME ZONE 'utc' AS retrieved_at, i.project, i.summary,
+      SELECT i.id, i.created_at, CURRENT_TIMESTAMP AS retrieved_at, i.project, i.summary,
              ou.name AS owner, nu.name AS nominated_by, i.acknowledged_at, i.fix_change, i.resolved_at
       FROM issues i
       LEFT JOIN users ou ON ou.id = i.owner_id
@@ -333,7 +333,7 @@ async function getIssuesInternal(
     `;
   } else if (includeResolved) {
     rows = await sql`
-      SELECT i.id, i.created_at, NOW() AT TIME ZONE 'utc' AS retrieved_at, i.project, i.summary,
+      SELECT i.id, i.created_at, CURRENT_TIMESTAMP AS retrieved_at, i.project, i.summary,
              ou.name AS owner, nu.name AS nominated_by, i.acknowledged_at, i.fix_change, i.resolved_at
       FROM issues i
       LEFT JOIN users ou ON ou.id = i.owner_id
@@ -341,7 +341,7 @@ async function getIssuesInternal(
     `;
   } else if (numResults > 0) {
     rows = await sql`
-      SELECT i.id, i.created_at, NOW() AT TIME ZONE 'utc' AS retrieved_at, i.project, i.summary,
+      SELECT i.id, i.created_at, CURRENT_TIMESTAMP AS retrieved_at, i.project, i.summary,
              ou.name AS owner, nu.name AS nominated_by, i.acknowledged_at, i.fix_change, i.resolved_at
       FROM issues i
       LEFT JOIN users ou ON ou.id = i.owner_id
@@ -352,7 +352,7 @@ async function getIssuesInternal(
     `;
   } else {
     rows = await sql`
-      SELECT i.id, i.created_at, NOW() AT TIME ZONE 'utc' AS retrieved_at, i.project, i.summary,
+      SELECT i.id, i.created_at, CURRENT_TIMESTAMP AS retrieved_at, i.project, i.summary,
              ou.name AS owner, nu.name AS nominated_by, i.acknowledged_at, i.fix_change, i.resolved_at
       FROM issues i
       LEFT JOIN users ou ON ou.id = i.owner_id

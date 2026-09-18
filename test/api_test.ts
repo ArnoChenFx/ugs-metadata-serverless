@@ -1,34 +1,26 @@
 /**
- * 纯本地 SQLite 模式端到端测试。
+ * API 端到端测试。
  *
- * 这里跑的是「默认本地模式」的真实链路：`DB_DRIVER=sqlite` + 临时数据库文件，
- * 不依赖任何外部服务。覆盖 UGS 客户端实际会调用的全部接口，
- * 并逐一校验返回的 JSON 形状与原始 ASP.NET MetadataServer 一致。
+ * 用真实链路跑一遍 UGS 客户端会调用的全部接口：真实的 Hono 应用、
+ * 真实的 HTTP 服务、真实的 SQLite 文件（临时目录，测试结束即清理），
+ * 不依赖任何外部服务。
  *
- * 最后一步还会真正启动一次 HTTP 服务（随机端口），验证 `Deno.serve` 链路
- * 以及 Docker healthcheck 依赖的 `/health` 接口。
+ * 测试的生命周期是被显式管理的：
+ *   临时目录 → initDatabase() → createApp() → 跑用例 → closeDatabase() → 删目录
  */
 
 import { assertEquals, assertExists } from "@std/assert";
+import { closeDatabase, initDatabase } from "../src/db.ts";
+import { createApp } from "../src/app.ts";
 
 // ---------------------------------------------------------------------------
-// 环境准备
-//
-// 必须在 *动态 import* 应用代码之前设置：驱动选择发生在第一次执行 SQL 时。
-// 使用动态 import 而不是静态 import，就是为了保证这里的顺序。
+// 准备
 // ---------------------------------------------------------------------------
-Deno.env.set("DB_DRIVER", "sqlite");
-Deno.env.delete("SUPABASE_DB_URL");
-Deno.env.delete("DATABASE_URL");
 
 const tempDir = await Deno.makeTempDir({ prefix: "ugs-api-test-" });
-Deno.env.set("SQLITE_PATH", `${tempDir}/ugs.db`);
+const dbPath = `${tempDir}/ugs.db`;
 
-const { createApp } = await import("../supabase/functions/ugs-metadata/app.ts");
-const { closeDriver, describeDriver } = await import(
-  "../supabase/functions/ugs-metadata/db.ts"
-);
-
+initDatabase({ path: dbPath });
 const app = createApp();
 
 /** 模拟 UGS 客户端使用的 Perforce 路径。 */
@@ -72,13 +64,13 @@ async function sendOk(
   return response;
 }
 
-/** 把响应体解析成数组（带类型方便断言）。 */
+/** 把响应体断言成数组。 */
 function asArray(body: JsonBody): Record<string, unknown>[] {
   assertEquals(Array.isArray(body), true, "期望返回数组");
   return body as Record<string, unknown>[];
 }
 
-/** 把响应体解析成对象。 */
+/** 把响应体断言成对象。 */
 function asObject(body: JsonBody): Record<string, unknown> {
   assertEquals(
     body !== null && !Array.isArray(body) && typeof body === "object",
@@ -92,11 +84,14 @@ function asObject(body: JsonBody): Record<string, unknown> {
 // 端到端流程
 // ---------------------------------------------------------------------------
 
-Deno.test("纯本地 SQLite 模式：完整 API 流程", async (t) => {
-  await t.step("驱动自动回落到 sqlite", async () => {
-    const info = await describeDriver();
-    assertEquals(info.driver, "sqlite");
-    assertEquals(info.target, `sqlite:${tempDir}/ugs.db`);
+Deno.test("API 端到端：完整流程", async (t) => {
+  await t.step("数据库已在指定路径创建（目录由 openDatabase 自动建立）", async () => {
+    const stat = await Deno.stat(dbPath);
+    assertEquals(stat.isFile, true);
+
+    // 建表脚本已执行：至少 projects / badges / issues 三张核心表存在
+    const response = await app.request(`/api/latest?Project=${PROJECT_QS}`);
+    assertEquals(response.status, 200);
   });
 
   // -------------------------------------------------------------------------
@@ -154,7 +149,7 @@ Deno.test("纯本地 SQLite 模式：完整 API 流程", async (t) => {
       Url: "http://ci.example.com/100",
       Project: PROJECT,
       ArchivePath: "//archive/100",
-      // Metadata 必须是对象（Postgres 的 jsonb 与 SQLite 的 TEXT 行为已统一）
+      // Metadata 必须是对象（库里存的是 JSON 文本）
       Metadata: {
         Links: [{ Title: "日志", Url: "http://ci.example.com/100/log" }],
       },
@@ -180,10 +175,7 @@ Deno.test("纯本地 SQLite 模式：完整 API 流程", async (t) => {
 
   await t.step("GET /api/build 对其他项目名返回空数组", async () => {
     const other = encodeURIComponent("//depot/other");
-    assertEquals(
-      await getJson(`/api/build?Project=${other}&LastBuildId=0`),
-      [],
-    );
+    assertEquals(await getJson(`/api/build?Project=${other}&LastBuildId=0`), []);
   });
 
   await t.step("GET /api/latest 反映最新构建的同步起点", async () => {
@@ -258,18 +250,14 @@ Deno.test("纯本地 SQLite 模式：完整 API 流程", async (t) => {
   // 遥测与错误上报
   // -------------------------------------------------------------------------
   await t.step("POST /api/telemetry 记录计时遥测", async () => {
-    await sendOk(
-      "POST",
-      "/api/telemetry?Version=1.2.3&IpAddress=10.0.0.1",
-      {
-        Action: "Sync",
-        Result: "Ok",
-        UserName: "alice",
-        Project: PROJECT,
-        Timestamp: "2026-01-02T03:04:05.678Z",
-        Duration: 12.5,
-      },
-    );
+    await sendOk("POST", "/api/telemetry?Version=1.2.3&IpAddress=10.0.0.1", {
+      Action: "Sync",
+      Result: "Ok",
+      UserName: "alice",
+      Project: PROJECT,
+      Timestamp: "2026-01-02T03:04:05.678Z",
+      Duration: 12.5,
+    });
   });
 
   await t.step("POST /api/error + GET /api/error 往返一致", async () => {
@@ -370,26 +358,23 @@ Deno.test("纯本地 SQLite 模式：完整 API 流程", async (t) => {
     assertEquals(await response.json(), null);
   });
 
-  await t.step(
-    "PUT /api/issues/:id 更新字段（含布尔与时间戳条件更新）",
-    async () => {
-      await sendOk("PUT", "/api/issues/1", {
-        Summary: "Editor 构建失败（已定位）",
-        NominatedBy: "bob",
-        Acknowledged: true,
-        FixChange: 1234,
-      });
+  await t.step("PUT /api/issues/:id 更新字段（含布尔与时间戳条件更新）", async () => {
+    await sendOk("PUT", "/api/issues/1", {
+      Summary: "Editor 构建失败（已定位）",
+      NominatedBy: "bob",
+      Acknowledged: true,
+      FixChange: 1234,
+    });
 
-      const issue = asObject(await getJson("/api/issues/1"));
-      assertEquals(issue.Summary, "Editor 构建失败（已定位）");
-      assertEquals(issue.NominatedBy, "BOB");
-      assertEquals(issue.FixChange, 1234);
-      assertExists(issue.AcknowledgedAt);
-      assertEquals(issue.ResolvedAt, null);
-      // 未传的字段保持原值
-      assertEquals(issue.Owner, "ALICE");
-    },
-  );
+    const issue = asObject(await getJson("/api/issues/1"));
+    assertEquals(issue.Summary, "Editor 构建失败（已定位）");
+    assertEquals(issue.NominatedBy, "BOB");
+    assertEquals(issue.FixChange, 1234);
+    assertExists(issue.AcknowledgedAt);
+    assertEquals(issue.ResolvedAt, null);
+    // 未传的字段保持原值
+    assertEquals(issue.Owner, "ALICE");
+  });
 
   await t.step("PUT /api/issues/:id 可以取消 Acknowledged", async () => {
     await sendOk("PUT", "/api/issues/1", { Acknowledged: false });
@@ -507,7 +492,6 @@ Deno.test("纯本地 SQLite 模式：完整 API 流程", async (t) => {
     assertEquals(await getJson("/api/issues/1/builds"), []);
     assertEquals(await getJson("/api/issues/1/diagnostics"), []);
     assertEquals(await getJson("/api/issues/1/watchers"), []);
-    // 用户可以保留（issues 之外还有其它引用）
     assertEquals(asArray(await getJson("/api/issues")), []);
   });
 
@@ -557,7 +541,7 @@ Deno.test("纯本地 SQLite 模式：完整 API 流程", async (t) => {
       assertEquals(health.status, 200);
       const healthBody = asObject((await health.json()) as JsonBody);
       assertEquals(healthBody.status, "ok");
-      assertEquals(healthBody.driver, "sqlite");
+      assertEquals(healthBody.database, dbPath);
 
       const root = await fetch(`${base}/`);
       assertEquals(root.status, 200);
@@ -576,10 +560,10 @@ Deno.test("纯本地 SQLite 模式：完整 API 流程", async (t) => {
 });
 
 // ---------------------------------------------------------------------------
-// 收尾：关闭 SQLite 文件句柄并清理临时目录
+// 收尾：关闭数据库并清理临时目录
 // ---------------------------------------------------------------------------
 
-Deno.test("收尾：关闭驱动并清理临时数据", async () => {
-  await closeDriver();
+Deno.test("收尾：关闭数据库并清理临时数据", async () => {
+  closeDatabase();
   await Deno.remove(tempDir, { recursive: true });
 });

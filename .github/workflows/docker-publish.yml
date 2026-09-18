@@ -50,7 +50,7 @@ jobs:
       - name: 类型检查
         run: deno task check
 
-      - name: 运行测试（含 SQLite 驱动与 API 端到端）
+      - name: 运行测试（SQLite 层单测 + API 端到端）
         run: deno task test
 
   # ---------------------------------------------------------------------------

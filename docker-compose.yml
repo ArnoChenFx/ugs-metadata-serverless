@@ -1,4 +1,4 @@
-# UGS Metadata Server —— 一键部署（纯本地 SQLite 模式）
+# UGS Metadata Server —— 一键部署
 #
 #   docker compose up -d            # 有镜像就直接用，没有就按需构建
 #   docker compose logs -f          # 看日志
@@ -6,8 +6,6 @@
 #
 # 数据保存在名为 ugs-data 的具名卷里，`docker compose down` 不会删除，
 # 只有 `docker compose down -v` 才会连带清除。
-#
-# 想改用 PostgreSQL：见 docker-compose.postgres.yml
 
 name: ugs-metadata
 
@@ -26,13 +24,9 @@ services:
     restart: unless-stopped
 
     environment:
-      # 纯本地模式：单文件 SQLite，无需任何外部数据库
-      DB_DRIVER: sqlite
       SQLITE_PATH: /data/ugs.db
       PORT: "8080"
       HOST: 0.0.0.0
-      # 路由前缀留空，UGS 客户端直接访问 http://<host>:8080/api/...
-      BASE_PATH: ""
 
     ports:
       # 宿主机端口可通过环境变量覆盖，例如 UGS_PORT=9000 docker compose up -d

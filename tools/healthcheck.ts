@@ -6,11 +6,12 @@
  *   deno run --allow-net --allow-env tools/healthcheck.ts http://other:8080/health
  *
  * 退出码：健康 0，异常 1（Docker 依赖退出码判断容器状态）。
+ * 刻意不用 curl/wget：运行镜像是精简镜像，不一定带这些工具，
+ * 而 Deno 本来就一定在。
  */
 
 const port = Deno.env.get("PORT") ?? "8080";
-const basePath = (Deno.env.get("BASE_PATH") ?? "").replace(/\/+$/, "");
-const url = Deno.args[0] ?? `http://127.0.0.1:${port}${basePath}/health`;
+const url = Deno.args[0] ?? `http://127.0.0.1:${port}/health`;
 
 try {
   const response = await fetch(url);

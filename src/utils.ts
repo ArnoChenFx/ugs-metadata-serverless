@@ -39,10 +39,11 @@ export function sanitizeText(text: string, maxLength: number): string {
 }
 
 /**
- * 归一化 JSON 列的值。
+ * 把数据库里以 JSON 文本存储的列解析成对象。
  *
- * Postgres 的 jsonb 列会被驱动直接解析成对象；而 SQLite 把 JSON 存成 TEXT，
- * 读出来是字符串。这里统一成对象，保证两种驱动对外返回完全一致的 JSON 形状。
+ * SQLite 没有原生 JSON 类型，`badges.metadata` 这类列存的是 TEXT。
+ * UGS 客户端期望 `Metadata` 是一个对象（如 `{"Links":[]}`），
+ * 因此读取时需要在这里解析一次。
  */
 export function parseJsonColumn<T = unknown>(value: unknown): T | null {
   if (value === null || value === undefined) return null;

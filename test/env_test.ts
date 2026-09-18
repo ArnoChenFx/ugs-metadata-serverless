@@ -3,33 +3,33 @@
  */
 
 import { assertEquals } from "@std/assert";
-import { parseDotEnv } from "../supabase/functions/ugs-metadata/env.ts";
+import { parseDotEnv } from "../src/env.ts";
 
 Deno.test("parseDotEnv: 基础键值对与空行/注释", () => {
   const parsed = parseDotEnv(`
 # 这是一行注释
 
-DB_DRIVER=sqlite
-PORT = 8080
+PORT=8080
+HOST = 0.0.0.0
 
   # 缩进的注释同样被忽略
 SQLITE_PATH=./data/ugs.db
 `);
 
-  assertEquals(parsed.get("DB_DRIVER"), "sqlite");
   assertEquals(parsed.get("PORT"), "8080");
+  assertEquals(parsed.get("HOST"), "0.0.0.0");
   assertEquals(parsed.get("SQLITE_PATH"), "./data/ugs.db");
   assertEquals(parsed.size, 3);
 });
 
 Deno.test("parseDotEnv: export 前缀与行尾注释", () => {
   const parsed = parseDotEnv(`
-export DB_DRIVER=postgres
-PORT=8080 # 行尾注释
+export PORT=8080
+HOST=0.0.0.0 # 行尾注释
 `);
 
-  assertEquals(parsed.get("DB_DRIVER"), "postgres");
   assertEquals(parsed.get("PORT"), "8080");
+  assertEquals(parsed.get("HOST"), "0.0.0.0");
 });
 
 Deno.test("parseDotEnv: 引号与转义", () => {
